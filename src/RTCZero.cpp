@@ -53,9 +53,9 @@ void RTCZero::begin(bool resetTime)
   RTC_MODE2_CLOCK_Type oldTime;
 
   if ((!resetTime) && (PM->RCAUSE.reg & (PM_RCAUSE_SYST | PM_RCAUSE_WDT | PM_RCAUSE_EXT))) {
-    if (RTC->MODE2.CTRL.reg & RTC_MODE2_CTRL_MODE_CLOCK) {
+    if (RTC->MODE0.CTRL.reg & RTC_MODE0_CTRL_MODE_COUNT32) {
       validTime = true;
-      oldTime.reg = RTC->MODE2.CLOCK.reg;
+      oldTime.reg = RTC->MODE0.COUNT.reg;
     }
   }
 
@@ -66,40 +66,37 @@ void RTCZero::begin(bool resetTime)
 
   RTCreset();
 
-  tmp_reg |= RTC_MODE2_CTRL_MODE_CLOCK; // set clock operating mode
-  tmp_reg |= RTC_MODE2_CTRL_PRESCALER_DIV1024; // set prescaler to 1024 for MODE2
-  tmp_reg &= ~RTC_MODE2_CTRL_MATCHCLR; // disable clear on match
+  tmp_reg |= RTC_MODE0_CTRL_MODE_COUNT32; // set clock operating mode
+  tmp_reg |= RTC_MODE0_CTRL_PRESCALER_DIV1024; // set prescaler to 1024 for MODE2
+  tmp_reg &= ~RTC_MODE0_CTRL_MATCHCLR; // disable clear on match
   
-  //According to the datasheet RTC_MODE2_CTRL_CLKREP = 0 for 24h
-  tmp_reg &= ~RTC_MODE2_CTRL_CLKREP; // 24h time representation
+  RTC->MODE0.READREQ.reg &= ~RTC_READREQ_RCONT; // disable continuously mode
 
-  RTC->MODE2.READREQ.reg &= ~RTC_READREQ_RCONT; // disable continuously mode
-
-  RTC->MODE2.CTRL.reg = tmp_reg;
+  RTC->MODE0.CTRL.reg = tmp_reg;
   while (RTCisSyncing())
     ;
 
   NVIC_EnableIRQ(RTC_IRQn); // enable RTC interrupt 
   NVIC_SetPriority(RTC_IRQn, 0x00);
 
-  RTC->MODE2.INTENSET.reg |= RTC_MODE2_INTENSET_ALARM0; // enable alarm interrupt
-  RTC->MODE2.Mode2Alarm[0].MASK.bit.SEL = MATCH_OFF; // default alarm match is off (disabled)
+  //RTC->MODE2.INTENSET.reg |= RTC_MODE2_INTENSET_ALARM0; // enable alarm interrupt
+  //RTC->MODE2.Mode2Alarm[0].MASK.bit.SEL = MATCH_OFF; // default alarm match is off (disabled)
   
-  while (RTCisSyncing())
-    ;
+  //while (RTCisSyncing())
+  //  ;
 
   RTCenable();
   RTCresetRemove();
 
   // If desired and valid, restore the time value, else use first valid time value
   if ((!resetTime) && (validTime) && (oldTime.reg != 0L)) {
-    RTC->MODE2.CLOCK.reg = oldTime.reg;
+    RTC->MODE0.COUNT.reg = oldTime.reg;
   }
-  else {
-    RTC->MODE2.CLOCK.reg = RTC_MODE2_CLOCK_YEAR(DEFAULT_YEAR - 2000) | RTC_MODE2_CLOCK_MONTH(DEFAULT_MONTH) 
-        | RTC_MODE2_CLOCK_DAY(DEFAULT_DAY) | RTC_MODE2_CLOCK_HOUR(DEFAULT_HOUR) 
-        | RTC_MODE2_CLOCK_MINUTE(DEFAULT_MINUTE) | RTC_MODE2_CLOCK_SECOND(DEFAULT_SECOND);
-  }
+  // else {
+  //   RTC->MODE2.CLOCK.reg = RTC_MODE2_CLOCK_YEAR(DEFAULT_YEAR - 2000) | RTC_MODE2_CLOCK_MONTH(DEFAULT_MONTH) 
+  //       | RTC_MODE2_CLOCK_DAY(DEFAULT_DAY) | RTC_MODE2_CLOCK_HOUR(DEFAULT_HOUR) 
+  //       | RTC_MODE2_CLOCK_MINUTE(DEFAULT_MINUTE) | RTC_MODE2_CLOCK_SECOND(DEFAULT_SECOND);
+  // }
   while (RTCisSyncing())
     ;
 
@@ -155,6 +152,19 @@ void RTCZero::standbyMode()
 /*
  * Get Functions
  */
+
+#if (ARDUINO_API_VERSION >= 10300)
+Timestamp RTCZero::getTime() {
+  RTCreadRequest();
+  return Timestamp(RTC->MODE0.COUNT.reg);
+}
+
+bool RTCZero::setTime(Timestamp t) {
+  RTC->MODE0.COUNT.reg = t.getUnixTimestamp();
+  while (RTCisSyncing())
+    ;
+}
+#endif
 
 uint8_t RTCZero::getSeconds()
 {
@@ -484,7 +494,7 @@ void RTCZero::config32kOSC()
 /* Synchronise the CLOCK register for reading*/
 inline void RTCZero::RTCreadRequest() {
   if (_configured) {
-    RTC->MODE2.READREQ.reg = RTC_READREQ_RREQ;
+    RTC->MODE0.READREQ.reg = RTC_READREQ_RREQ;
     while (RTCisSyncing())
       ;
   }
@@ -493,33 +503,33 @@ inline void RTCZero::RTCreadRequest() {
 /* Wait for sync in write operations */
 inline bool RTCZero::RTCisSyncing()
 {
-  return (RTC->MODE2.STATUS.bit.SYNCBUSY);
+  return (RTC->MODE0.STATUS.bit.SYNCBUSY);
 }
 
 void RTCZero::RTCdisable()
 {
-  RTC->MODE2.CTRL.reg &= ~RTC_MODE2_CTRL_ENABLE; // disable RTC
+  RTC->MODE0.CTRL.reg &= ~RTC_MODE0_CTRL_ENABLE; // disable RTC
   while (RTCisSyncing())
     ;
 }
 
 void RTCZero::RTCenable()
 {
-  RTC->MODE2.CTRL.reg |= RTC_MODE2_CTRL_ENABLE; // enable RTC
+  RTC->MODE0.CTRL.reg |= RTC_MODE0_CTRL_ENABLE; // enable RTC
   while (RTCisSyncing())
     ;
 }
 
 void RTCZero::RTCreset()
 {
-  RTC->MODE2.CTRL.reg |= RTC_MODE2_CTRL_SWRST; // software reset
+  RTC->MODE0.CTRL.reg |= RTC_MODE0_CTRL_SWRST; // software reset
   while (RTCisSyncing())
     ;
 }
 
 void RTCZero::RTCresetRemove()
 {
-  RTC->MODE2.CTRL.reg &= ~RTC_MODE2_CTRL_SWRST; // software reset remove
+  RTC->MODE0.CTRL.reg &= ~RTC_MODE0_CTRL_SWRST; // software reset remove
   while (RTCisSyncing())
     ;
 }

@@ -20,12 +20,20 @@
 #ifndef RTC_ZERO_H
 #define RTC_ZERO_H
 
-#include "Arduino.h"
+#include <Arduino.h>
 
 typedef void(*voidFuncPtr)(void);
 
+// RealTimeClock is defined from 1.3.0
+#if (ARDUINO_API_VERSION >= 10300)
+class RTCZero : public RealTimeClock {
+public:
+  virtual Timestamp getTime();
+  virtual bool setTime(Timestamp t);
+#else
 class RTCZero {
 public:
+#endif
 
   enum Alarm_Match: uint8_t // Should we have this enum or just use the identifiers from /component/rtc.h ?
   {
