@@ -32,7 +32,6 @@ void loop() {
 
 void printCurrentHour(RealTimeClock &rtc) {
   auto t = rtc.getTime();
-  Serial.println(__TIMESTAMP__);
   char *days[] = {"Sunday",   "Monday", "Tuesday", "Wednesday",
                   "Thursday", "Friday", "Saturday"};
   Serial.print(t.getUnixTimestamp());
